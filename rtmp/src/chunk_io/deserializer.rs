@@ -205,9 +205,14 @@ impl ChunkDeserializer {
             },
 
             _ => match self.previous_headers.remove(&csid) {
-                None => return Err(ChunkDeserializationError{kind: ChunkDeserializationErrorKind::NoPreviousChunkOnStream{csid}}),
+                None => {
+                    let mut new_header = ChunkHeader::new();
+                    new_header.chunk_stream_id = csid;
+                    new_header
+                },
+                //None => return Err(ChunkDeserializationError{kind: ChunkDeserializationErrorKind::NoPreviousChunkOnStream{csid}}),
                 Some(header) => header
-            }
+            },
         };
 
         self.buffer.split_to(next_index as usize);

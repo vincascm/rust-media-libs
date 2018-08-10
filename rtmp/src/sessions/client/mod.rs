@@ -131,6 +131,9 @@ impl ClientSession {
                         RtmpMessage::WindowAcknowledgement {size}
                             => self.handle_window_ack_size(size)?,
 
+                        RtmpMessage::SetChunkSize {size}
+                            => self.handle_set_chunk_size(size)?,
+
                         _ => vec![ClientSessionResult::UnhandleableMessageReceived(payload)],
                     };
 
@@ -162,6 +165,10 @@ impl ClientSession {
         properties.insert("app".to_string(), Amf0Value::Utf8String(app_name));
         properties.insert("flashVer".to_string(), Amf0Value::Utf8String(self.config.flash_version.clone()));
         properties.insert("objectEncoding".to_string(), Amf0Value::Number(0.0));
+
+        properties.insert("type".to_string(), Amf0Value::Utf8String("nonprivate".to_string()));
+        properties.insert("tcUrl".to_string(), Amf0Value::Utf8String("rtmp://localhost:1935/live".to_string()));
+
 
         let message = RtmpMessage::Amf0Command {
             command_name: "connect".to_string(),
@@ -411,7 +418,7 @@ impl ClientSession {
 
         let message = RtmpMessage::VideoData {data};
         let payload = message.into_message_payload(timestamp, active_stream_id)?;
-        let packet = self.serializer.serialize(&payload, false, can_be_dropped)?;
+        let packet = self.serializer.serialize(&payload, true, can_be_dropped)?;
         Ok(ClientSessionResult::OutboundResponse(packet))
     }
 
@@ -436,6 +443,27 @@ impl ClientSession {
         let message = RtmpMessage::AudioData {data};
         let payload = message.into_message_payload(timestamp, active_stream_id)?;
         let packet = self.serializer.serialize(&payload, false, can_be_dropped)?;
+        Ok(ClientSessionResult::OutboundResponse(packet))
+    }
+
+    pub fn set_chunk_size(&mut self, size: u32) -> Result<ClientSessionResult, ClientSessionError> {
+        match self.current_state {
+            ClientState::Publishing => (),
+            _ => {
+                let kind = ClientSessionErrorKind::SessionInInvalidState {current_state: self.current_state.clone()};
+                return Err(ClientSessionError {kind});
+            }
+        }
+
+        let active_stream_id = match self.active_stream_id {
+            Some(x) => x,
+            None => {
+                let kind = ClientSessionErrorKind::NoKnownActiveStreamIdWhenRequired;
+                return Err(ClientSessionError {kind});
+            }
+        };
+
+        let packet = self.serializer.set_max_chunk_size(size, RtmpTimestamp::new(0))?;
         Ok(ClientSessionResult::OutboundResponse(packet))
     }
 
@@ -768,6 +796,12 @@ impl ClientSession {
 
     fn handle_window_ack_size(&mut self, size: u32) -> ClientResult {
         self.peer_window_ack_size = Some(size);
+        self.current_state = ClientState::Connected;
+        Ok(Vec::new())
+    }
+
+    fn handle_set_chunk_size(&mut self, size: u32) -> ClientResult {
+        self.deserializer.set_max_chunk_size(size as usize).unwrap();
         Ok(Vec::new())
     }
 

@@ -114,6 +114,7 @@ impl ChunkSerializer {
         for slice in slices.into_iter() {
             self.add_chunk(&mut bytes, force_uncompressed, message, slice, can_be_dropped)?;
         }
+        self.previous_headers.clear();
 
         Ok(Packet {
             bytes: bytes.into_inner(),
@@ -245,7 +246,7 @@ fn add_extended_timestamp(bytes: &mut Write, format: &ChunkHeaderFormat, header:
 }
 
 fn add_message_payload(bytes: &mut Write, data: &[u8]) -> Result<(), ChunkSerializationError> {
-    bytes.write(data)?;
+    bytes.write_all(data)?;
     Ok(())
 }
 

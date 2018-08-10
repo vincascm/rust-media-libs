@@ -600,9 +600,9 @@ impl ServerSession {
         let start_at = if arguments.len() >= 1 {
             match arguments.remove(0) {
                 Amf0Value::Number(x) => {
-                    if x == -2.0 {
+                    if (x - -2.0).abs() < 0.00001 {
                         PlayStartValue::LiveOrRecorded
-                    } else if x == -1.0 {
+                    } else if (x - -1.0).abs() < 0.00001 {
                         PlayStartValue::LiveOnly
                     } else if x >= 0.0 {
                         PlayStartValue::StartTimeInSeconds(x as u32)
